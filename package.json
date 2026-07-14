@@ -1,0 +1,33 @@
+{
+  "name": "edubank-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@tailwindcss/postcss": "^4.3.2",
+    "autoprefixer": "^10.5.2",
+    "firebase": "^12.16.0",
+    "formidable": "^3.5.4",
+    "fs-extra": "^11.3.6",
+    "next": "^15.5.20",
+    "pdf-parse": "^2.4.5",
+    "postcss": "^8.5.17",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.5.20",
+    "typescript": "^5.0.0"
+  }
+}

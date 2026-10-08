@@ -1,3 +1,4 @@
+import { requireTextbookAdmin, downloadTextbook, type TextbookFile, TextbookRequestError } from "@/lib/textbookStorageServer";
 import type { NextApiRequest, NextApiResponse } from "next";
 import formidable, { type File as FormidableFile } from "formidable";
 import { promises as fs } from "fs";
@@ -233,7 +234,7 @@ function safeNumber(
 }
 
 function validateUploadedFile(
-  file: FormidableFile
+  file: TextbookFile
 ): void {
   if (
     !file.size ||
@@ -1133,7 +1134,7 @@ export default async function handler(
   }
 
   let uploadedFile:
-    | FormidableFile
+    | TextbookFile
     | null = null;
 
   let geminiFile:
@@ -1141,8 +1142,11 @@ export default async function handler(
     null;
 
   try {
+    const uid = await requireTextbookAdmin(req);
+
     const form =
       formidable({
+        maxFieldsSize: 1024 * 1024,
         multiples: false,
         maxFileSize:
           MAX_FILE_SIZE,
@@ -1162,6 +1166,18 @@ export default async function handler(
       getFirstFile(
         files.file
       );
+
+    const storagePath = getFirstField(fields.storagePath).trim();
+    if (storagePath) {
+      // Neither arbitrary URLs nor another user's objects are accepted.
+      if (uploadedFile) {
+        await fs.unlink(uploadedFile.filepath).catch(() => undefined);
+        uploadedFile = null;
+        throw new TextbookRequestError(400, "Chỉ gửi đường dẫn SGK, không gửi thêm tệp.");
+      }
+      uploadedFile = await downloadTextbook(uid, storagePath);
+    }
+
 
     if (!uploadedFile) {
       return res
@@ -1306,6 +1322,9 @@ export default async function handler(
         },
       });
   } catch (error) {
+    if (error instanceof TextbookRequestError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     console.error(
       "Lỗi API analyze-book:",
       error

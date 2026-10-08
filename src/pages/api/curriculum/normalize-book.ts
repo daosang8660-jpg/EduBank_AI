@@ -1,3 +1,4 @@
+import { requireTextbookAdmin, downloadTextbook, type TextbookFile, TextbookRequestError } from "@/lib/textbookStorageServer";
 import type {
   NextApiRequest,
   NextApiResponse,
@@ -409,7 +410,7 @@ function asArray(
 ===================================================== */
 
 function validatePdfFile(
-  file: FormidableFile
+  file: TextbookFile
 ): void {
   if (
     !file.size ||
@@ -1945,7 +1946,7 @@ export default async function handler(
   }
 
   let uploadedFile:
-    FormidableFile | null =
+    TextbookFile | null =
     null;
 
   let geminiFile:
@@ -1957,8 +1958,11 @@ export default async function handler(
        PARSE MULTIPART
     --------------------------------------------- */
 
+    const uid = await requireTextbookAdmin(req);
+
     const form =
       formidable({
+        maxFieldsSize: 1024 * 1024,
         multiples:
           false,
 
@@ -1981,6 +1985,18 @@ export default async function handler(
       getFirstFile(
         files.file
       );
+
+    const storagePath = getFirstField(fields.storagePath).trim();
+    if (storagePath) {
+      // Neither arbitrary URLs nor another user's objects are accepted.
+      if (uploadedFile) {
+        await fs.unlink(uploadedFile.filepath).catch(() => undefined);
+        uploadedFile = null;
+        throw new TextbookRequestError(400, "Chỉ gửi đường dẫn SGK, không gửi thêm tệp.");
+      }
+      uploadedFile = await downloadTextbook(uid, storagePath);
+    }
+
 
     if (
       !uploadedFile
@@ -2396,9 +2412,10 @@ if (
 
         results,
       });
-  } catch (
-    error
-  ) {
+  } catch (error) {
+    if (error instanceof TextbookRequestError) {
+      return res.status(error.status).json({ success: false, error: error.message });
+    }
     console.error(
       "NORMALIZE BOOK API ERROR:",
       error

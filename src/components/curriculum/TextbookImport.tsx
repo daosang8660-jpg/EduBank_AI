@@ -1,7 +1,10 @@
+import { auth, storage } from "@/lib/firebase";
+import { ref, uploadBytesResumable } from "firebase/storage";
 // src/components/curriculum/TextbookImport.tsx
 import {
   ChangeEvent,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -196,6 +199,46 @@ function normalizeLessons(
 ===================================================== */
 
 export default function TextbookImport() {
+  const uploadedBook = useRef<{ file: File; uid: string; storagePath: string } | null>(null);
+
+  async function prepareBookUpload(file: File): Promise<{ storagePath: string; token: string }> {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Phiên đăng nhập đã hết. Hãy đăng nhập lại.");
+    if (file.size <= 0 || file.size > 50 * 1024 * 1024) {
+      throw new Error("SGK phải là tệp PDF có dung lượng từ 1 byte đến 50 MB.");
+    }
+    if (!file.name.toLowerCase().endsWith(".pdf")) throw new Error("Chỉ nhận SGK PDF.");
+    const signature = new TextDecoder().decode(await file.slice(0, 5).arrayBuffer());
+    if (signature !== "%PDF-") throw new Error("Nội dung tệp không phải PDF hợp lệ.");
+    if (uploadedBook.current?.file !== file || uploadedBook.current.uid !== user.uid) {
+      const storagePath = `textbooks/${user.uid}/${crypto.randomUUID()}.pdf`;
+      const task = uploadBytesResumable(ref(storage, storagePath), file, {
+        contentType: "application/pdf",
+        customMetadata: { originalName: file.name },
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          task.on("state_changed", (snapshot) => {
+            const percent = Math.round(100 * snapshot.bytesTransferred / snapshot.totalBytes);
+            setSuccessMessage(`Đang tải SGK: ${percent}%`);
+          }, reject, () => resolve());
+        });
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code === "storage/unauthorized") {
+          throw new Error("Chưa có quyền tải SGK. Kiểm tra Storage Rules và quyền admin của tài khoản.");
+        }
+        if (code === "storage/bucket-not-found") {
+          throw new Error("Không tìm thấy Firebase Storage. Kiểm tra bucket trong cấu hình website.");
+        }
+        throw error;
+      }
+      uploadedBook.current = { file, uid: user.uid, storagePath };
+    }
+    setSuccessMessage("Đã tải SGK. Đang xử lý nội dung...");
+    return { storagePath: uploadedBook.current.storagePath, token: await user.getIdToken() };
+  }
+
   const firstSubject =
     curriculumData[0];
 
@@ -518,10 +561,8 @@ export default function TextbookImport() {
         const formData =
           new FormData();
 
-        formData.append(
-          "file",
-          selectedFile
-        );
+        const bookUpload = await prepareBookUpload(selectedFile);
+        formData.append("storagePath", bookUpload.storagePath);
 
         formData.append(
           "subjectId",
@@ -552,6 +593,7 @@ export default function TextbookImport() {
               method:
                 "POST",
 
+              headers: { Authorization: `Bearer ${bookUpload.token}` },
               body:
                 formData,
             }
@@ -1188,10 +1230,8 @@ export default function TextbookImport() {
         const formData =
           new FormData();
 
-        formData.append(
-          "file",
-          selectedFile
-        );
+        const bookUpload = await prepareBookUpload(selectedFile);
+        formData.append("storagePath", bookUpload.storagePath);
 
         formData.append(
           "curriculumId",
@@ -1241,6 +1281,7 @@ export default function TextbookImport() {
             "/api/curriculum/normalize-book",
             {
               method: "POST",
+              headers: { Authorization: `Bearer ${bookUpload.token}` },
               body: formData,
             }
           );

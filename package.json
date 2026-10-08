@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node scripts/fix-firebase-esm.cjs",
+    "prebuild": "node scripts/fix-firebase-esm.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

@@ -1,4 +1,14 @@
-export function validateQuestions(questions: any[]) {
+export interface QuestionValidationInput {
+  id?: string | number | null;
+  type?: string | null;
+  difficulty?: string | null;
+  question?: string | null;
+  options?: string[] | null;
+  answer?: string | null;
+  explanation?: string | null;
+}
+
+export function validateQuestions(questions: readonly QuestionValidationInput[]) {
   return questions.map((q, index) => ({
     id: q.id ?? index + 1,
 

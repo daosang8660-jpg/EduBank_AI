@@ -1,228 +1,139 @@
-import { useEffect, useState } from "react";
+import React from 'react';
 
-type Question = {
-  id: number;
+// Định nghĩa cấu trúc của một câu hỏi
+interface Question {
+  id: string | number;
   type: string;
-  difficulty?: string;
-  question?: string;
+  level: string;
+  topic: string;
+  content: string;
   options?: string[];
-  answer?: string;
-  explanation?: string;
-};
+  correctAnswer: string;
+}
 
-const difficultyLabel = (d?: string) => {
-  switch (d) {
-    case "easy":
-      return "Nhận biết";
-    case "medium":
-      return "Thông hiểu";
-    case "hard":
-      return "Vận dụng";
-    default:
-      return d || "Chưa xác định";
-  }
-};
+interface Props {
+  questions?: Question[];
+  onSave: () => void;
+  isSaving?: boolean; // Thêm prop để nhận trạng thái đang lưu từ component cha
+}
 
-const difficultyColor = (d?: string) => {
-  switch (d) {
-    case "easy":
-      return "bg-green-50 text-green-700 border-green-200";
-    case "medium":
-      return "bg-amber-50 text-amber-700 border-amber-200";
-    case "hard":
-      return "bg-red-50 text-red-700 border-red-200";
-    default:
-      return "bg-slate-50 text-slate-600 border-slate-200";
-  }
-};
-
-export default function QuestionReview() {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    const raw = window.sessionStorage.getItem("generatedQuestions");
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        setQuestions(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setQuestions([]);
-      }
-    }
-  }, []);
-
-  const updateQuestion = (id: number, patch: Partial<Question>) => {
-    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)));
-  };
-
-  const updateOption = (id: number, index: number, value: string) => {
-    setQuestions((prev) =>
-      prev.map((q) => {
-        if (q.id !== id) return q;
-        const options = [...(q.options || [])];
-        options[index] = value;
-        return { ...q, options };
-      })
-    );
-  };
-
-  const removeQuestion = (id: number) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
-  };
-
-  const markSaved = (id: number) => {
-    setSavedIds((prev) => new Set(prev).add(id));
-    setEditingId(null);
-  };
-
-  const saveAllToBank = () => {
-    // TODO: gọi API lưu vào ngân hàng câu hỏi thật (ví dụ POST /api/questions)
-    window.sessionStorage.removeItem("generatedQuestions");
-    window.alert(`Đã lưu ${questions.length} câu hỏi vào ngân hàng.`);
-  };
-
-  if (questions.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-[#f9fafb] text-slate-400 p-8">
-        <i className="fa-regular fa-file-lines text-6xl mb-4 text-slate-300"></i>
-        <h2 className="text-xl font-bold text-slate-600 mb-2">Chưa có câu hỏi nào để duyệt</h2>
-        <p className="text-sm text-center max-w-sm">
-          Vào tab "Trình tạo AI" để tải lên file PDF và sinh câu hỏi trước, sau đó quay lại đây để kiểm duyệt.
-        </p>
-      </div>
-    );
-  }
+export default function QuestionReview({ 
+  questions = [], 
+  onSave,
+  isSaving = false
+}: Props) {
+  
+  const totalQuestions = questions.length;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#f9fafb] font-sans text-slate-800">
-      <header className="flex items-center justify-between border-b border-slate-200 px-8 bg-white h-[60px] shrink-0">
+    <div className="max-w-5xl mx-auto p-8 space-y-6">
+      
+      {/* Khối Header đếm số lượng */}
+      <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm flex justify-between items-center">
         <div>
-          <h2 className="font-bold text-slate-800 text-[15px]">Duyệt câu hỏi</h2>
-          <p className="text-[11px] text-slate-500">
-            {questions.length} câu hỏi được AI sinh ra • kiểm tra trước khi lưu vào ngân hàng
+          <h1 className="text-2xl font-bold text-[#1e293b]">Kiểm duyệt câu hỏi AI</h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Chỉnh sửa trước khi đưa vào ngân hàng câu hỏi để soạn đề cương ôn tập.
           </p>
         </div>
-        <button
-          onClick={saveAllToBank}
-          className="bg-[#283870] hover:bg-[#1e2a55] text-white font-bold text-sm px-5 py-2.5 rounded-lg transition-colors"
-          type="button"
-        >
-          Lưu tất cả vào ngân hàng
-        </button>
-      </header>
-
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {questions.map((q, idx) => {
-            const isEditing = editingId === q.id;
-            const isSaved = savedIds.has(q.id);
-
-            return (
-              <div
-                key={q.id}
-                className={`bg-white border rounded-xl shadow-sm p-5 transition-colors ${
-                  isSaved ? "border-green-300" : "border-slate-200"
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3 gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-slate-400">Câu {idx + 1}</span>
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${difficultyColor(
-                        q.difficulty
-                      )}`}
-                    >
-                      {difficultyLabel(q.difficulty)}
-                    </span>
-                    {isSaved && (
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">
-                        Đã duyệt
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!isEditing ? (
-                      <button
-                        onClick={() => setEditingId(q.id)}
-                        className="text-xs font-semibold text-[#0a58ca] hover:underline"
-                        type="button"
-                      >
-                        Sửa
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => markSaved(q.id)}
-                        className="text-xs font-semibold text-green-600 hover:underline"
-                        type="button"
-                      >
-                        Xong
-                      </button>
-                    )}
-                    <button
-                      onClick={() => removeQuestion(q.id)}
-                      className="text-xs font-semibold text-red-500 hover:underline"
-                      type="button"
-                    >
-                      Xóa
-                    </button>
-                  </div>
-                </div>
-
-                {isEditing ? (
-                  <textarea
-                    className="w-full border border-slate-200 rounded-md p-3 text-sm mb-3 focus:outline-none focus:border-[#0a58ca]"
-                    rows={2}
-                    value={q.question || ""}
-                    onChange={(e) => updateQuestion(q.id, { question: e.target.value })}
-                  />
-                ) : (
-                  <p className="text-sm font-medium text-slate-800 mb-3">{q.question}</p>
-                )}
-
-                {Array.isArray(q.options) && q.options.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                    {q.options.map((opt, i) => {
-                      const letter = String.fromCharCode(65 + i);
-                      const isCorrect = q.answer === letter || q.answer === opt;
-                      return (
-                        <div
-                          key={i}
-                          className={`flex items-center gap-2 border rounded-md px-3 py-2 text-sm ${
-                            isCorrect
-                              ? "border-green-300 bg-green-50 text-green-800"
-                              : "border-slate-200 text-slate-600"
-                          }`}
-                        >
-                          <span className="font-bold">{letter}.</span>
-                          {isEditing ? (
-                            <input
-                              className="flex-1 bg-transparent focus:outline-none"
-                              value={opt}
-                              onChange={(e) => updateOption(q.id, i, e.target.value)}
-                            />
-                          ) : (
-                            <span>{opt}</span>
-                          )}
-                          {isCorrect && <i className="fa-solid fa-check ml-auto text-green-600"></i>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {q.explanation && (
-                  <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-3 py-2">
-                    <span className="font-semibold text-slate-600">Giải thích: </span>
-                    {q.explanation}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="text-right">
+          <div className="text-4xl font-bold text-blue-600">{totalQuestions}</div>
+          <div className="text-sm text-slate-500 font-medium">Câu hỏi</div>
         </div>
       </div>
+
+      {/* Khối Hành động (Sẵn sàng lưu) */}
+      <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Sẵn sàng lưu</h2>
+          <p className="text-slate-500 text-sm mt-0.5">{totalQuestions} câu hỏi</p>
+        </div>
+        <button 
+          onClick={onSave}
+          disabled={totalQuestions === 0 || isSaving}
+          className="bg-[#3b5998] hover:bg-blue-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-md font-medium transition-colors flex items-center justify-center space-x-2 w-48"
+        >
+          {isSaving ? (
+            <>
+              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Đang lưu...</span>
+            </>
+          ) : (
+            <span>Lưu vào ngân hàng</span>
+          )}
+        </button>
+      </div>
+
+      {/* Danh sách Câu hỏi */}
+      <div className="space-y-4">
+        {questions.map((q, index) => (
+          <div key={q.id} className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm hover:border-blue-300 transition-colors">
+            
+            {/* Tag thông tin */}
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center space-x-3">
+                <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded">
+                  Câu {index + 1}
+                </span>
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded">
+                  {q.level}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {q.topic}
+                </span>
+              </div>
+              
+              {/* Nút thao tác (Sửa/Xóa) */}
+              <div className="flex space-x-2">
+                <button className="text-slate-400 hover:text-blue-600 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button className="text-slate-400 hover:text-red-500 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Nội dung câu hỏi */}
+            <p className="text-[15px] font-medium text-slate-800 mb-4 whitespace-pre-wrap">
+              {q.content}
+            </p>
+
+            {/* Các đáp án lựa chọn (nếu có) */}
+            {q.options && q.options.length > 0 && (
+              <div className="space-y-2 mb-4 pl-2">
+                {(q.options ?? []).map((opt, i) => (
+                  <div key={i} className="text-[15px] text-slate-700">
+                    {opt}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Trình bày đáp án trực tiếp */}
+            <div className="pt-3 border-t border-slate-100 flex items-start space-x-2">
+              <span className="text-[15px] font-bold text-emerald-600">Đáp án:</span>
+              <span className="text-[15px] font-semibold text-slate-800">{q.correctAnswer}</span>
+            </div>
+
+          </div>
+        ))}
+
+        {/* Trạng thái trống khi chưa có câu hỏi */}
+        {questions.length === 0 && (
+          <div className="text-center py-12 text-slate-500">
+            Chưa có câu hỏi nào được sinh.
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

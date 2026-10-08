@@ -190,7 +190,7 @@ export default function CreateQuestionPage() {
 
               {questionType !== "trac-nghiem" && (
                 <div className="p-10 text-center text-slate-400 border border-dashed border-slate-200 rounded">
-                  Giao diện cho dạng "{questionTypeTabs.find((t) => t.key === questionType)?.label}" sẽ hiển thị ở đây.
+                  Giao diện cho dạng &quot;{questionTypeTabs.find((t) => t.key === questionType)?.label}&quot; sẽ hiển thị ở đây.
                 </div>
               )}
             </section>
@@ -262,7 +262,7 @@ export default function CreateQuestionPage() {
                 <h3 className="font-bold text-sm">Trợ lý AI</h3>
               </div>
               <p className="text-xs text-blue-100 leading-relaxed mb-6 relative z-10">
-                Nhấn "AI Phân tích" để kiểm tra tính logic, ngôn ngữ và độ phù hợp của câu hỏi với khung chương trình 2018.
+                Nhấn &quot;AI Phân tích&quot; để kiểm tra tính logic, ngôn ngữ và độ phù hợp của câu hỏi với khung chương trình 2018.
               </p>
               <div className="bg-white/10 rounded border border-white/20 p-3 relative z-10">
                 <div className="flex justify-between text-xs font-semibold mb-2">

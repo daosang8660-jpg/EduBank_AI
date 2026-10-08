@@ -1,105 +1,51 @@
-import { DocumentAnalysis } from "../document/analyzeDocument";
-
-export interface GenerateQuestionOptions {
-  totalQuestions: number;
-
-  levels: {
-    nb: number;
-    th: number;
-    vd: number;
-  };
-
-  questionTypes: {
-    multipleChoice: boolean;
-    trueFalse: boolean;
-    shortAnswer: boolean;
-    essay: boolean;
-  };
+export interface QuestionPromptSelection {
+  subject: string;
+  grade: string | number;
+  book: string;
+  chapter: string;
+  lesson: string;
 }
 
-export function buildPrompt(
-  document: DocumentAnalysis,
-  options: GenerateQuestionOptions
-) {
-  const selectedTypes = Object.entries(options.questionTypes)
-    .filter(([, value]) => value)
-    .map(([key]) => {
-      switch (key) {
-        case "multipleChoice":
-          return "Trắc nghiệm nhiều lựa chọn";
+export interface QuestionPromptConfig {
+  total: number;
+  matrix: { nb: number; th: number; vd: number; vdc: number };
+}
 
-        case "trueFalse":
-          return "Đúng/Sai";
-
-        case "shortAnswer":
-          return "Trả lời ngắn";
-
-        case "essay":
-          return "Tự luận";
-
-        default:
-          return "";
-      }
-    })
-    .join(", ");
-
+export const buildQuestionPrompt = (
+  selection: QuestionPromptSelection,
+  config: QuestionPromptConfig,
+  contextText: string
+): string => {
   return `
-Bạn là chuyên gia biên soạn ngân hàng câu hỏi theo Chương trình GDPT 2018.
+Nhiệm vụ: Soạn đề cương ôn tập cho học sinh.
+Môn học: ${selection.subject} lớp ${selection.grade}, sách ${selection.book}.
+Phạm vi kiến thức: ${selection.chapter} - ${selection.lesson}.
 
-========================
+Dựa vào nội dung học liệu chuẩn sau đây:
+"""
+${contextText}
+"""
 
-CHỈ sử dụng nội dung trong tài liệu dưới đây.
+Hãy sinh ra đúng ${config.total} câu hỏi bám sát ma trận:
+- Nhận biết: ${config.matrix.nb} câu
+- Thông hiểu: ${config.matrix.th} câu
+- Vận dụng: ${config.matrix.vd} câu
+- Vận dụng cao: ${config.matrix.vdc} câu
 
-KHÔNG tự suy diễn.
-
-KHÔNG bổ sung kiến thức ngoài tài liệu.
-
-========================
-
-Nội dung tài liệu
-
-${document.content}
-
-========================
-
-Yêu cầu
-
-- Sinh ${options.totalQuestions} câu hỏi.
-
-- Tỷ lệ mức độ
-
-+ Nhận biết ${options.levels.nb}%
-
-+ Thông hiểu ${options.levels.th}%
-
-+ Vận dụng ${options.levels.vd}%
-
-- Loại câu hỏi
-
-${selectedTypes}
-
-========================
-
-Trả về DUY NHẤT JSON Array.
-
-Ví dụ
-
+YÊU CẦU BẮT BUỘC: 
+1. Trả về DUY NHẤT một mảng JSON hợp lệ. 
+2. Chỉ đưa ra đáp án và câu hỏi, tuyệt đối KHÔNG giải thích, KHÔNG bình luận thêm.
+3. Cấu trúc mỗi object trong mảng phải chính xác như sau:
 [
-{
-"id":1,
-"type":"multiple_choice",
-"difficulty":"easy",
-"question":"...",
-"options":["A","B","C","D"],
-"answer":"A",
-"explanation":"..."
-}
+  {
+    "id": 1,
+    "type": "multipleChoice", // hoặc "shortAnswer", "trueFalse"
+    "level": "Nhận biết",
+    "topic": "Tên chủ đề hoặc tên văn bản/bài học",
+    "content": "Nội dung câu hỏi?",
+    "options": ["A. ...", "B. ...", "C. ...", "D. ..."], // Bỏ trống mảng này nếu không phải trắc nghiệm
+    "correctAnswer": "A" // Trả về đáp án đúng cực kỳ ngắn gọn
+  }
 ]
-
-Không markdown.
-
-Không giải thích.
-
-Không thêm text ngoài JSON.
 `;
-}
+};

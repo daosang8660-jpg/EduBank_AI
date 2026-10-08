@@ -1,107 +1,69 @@
- import type { NextApiRequest, NextApiResponse } from "next";
-import fs from "fs/promises";
-import * as formidableNS from "formidable";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-import { extractDocument } from "@/services/document";
-import {
-  buildPrompt,
-  GenerateQuestionOptions,
-} from "@/services/ai/prompt";
-import { generateFromGemini } from "@/services/ai/generator";
-import { validateQuestions } from "@/services/validator/answer";
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-const getFirst = (v: unknown) => (Array.isArray(v) ? v[0] : v);
-
-const getFormidableFn = (): any => {
-  const ns: any = formidableNS;
-  return ns.formidable || ns.default || ns;
-};
+// Khởi tạo SDK với API Key từ biến môi trường
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  // Chỉ chấp nhận method POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
 
-  const formidableFn = getFormidableFn();
-
-  const form = formidableFn({
-    multiples: false,
-    keepExtensions: true,
-  });
-
-  let uploadedFile = "";
-
   try {
-    const { fields, files } = await new Promise<any>((resolve, reject) => {
-      form.parse(req, (err: any, fields: any, files: any) => {
-        if (err) reject(err);
-        else resolve({ fields, files });
-      });
+    // Nhận dữ liệu đầu vào từ client (từ file src/components/ai/AIGenerator.tsx chẳng hạn)
+    const { subject, grade, lesson, questionCount } = req.body;
+
+    // Sử dụng model Flash cho tốc độ sinh nhanh, và ÉP KIỂU trả về JSON
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json", // Bắt buộc AI trả về JSON hợp lệ
+      }
     });
 
-    const file = Array.isArray(files.file)
-      ? files.file[0]
-      : files.file;
+    // Prompt hướng dẫn AI (có thể tinh chỉnh thêm dựa vào schema ở src/models/Question.ts)
+    const prompt = `
+      Đóng vai một chuyên gia giáo dục. Hãy tạo ${questionCount || 4} câu hỏi trắc nghiệm cho:
+      - Môn học: ${subject}
+      - Khối lớp: ${grade}
+      - Bài học cụ thể: ${lesson}
+      
+      Hãy phân bổ đều theo 4 mức độ nhận thức: Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao.
+      
+      TRẢ VỀ MỘT MẢNG JSON VỚI CẤU TRÚC SAU CHO MỖI OBJECT:
+      {
+        "cognitive_level": "nhan_biet" | "thong_hieu" | "van_dung" | "van_dung_cao",
+        "content": "Nội dung câu hỏi...",
+        "options": {
+          "A": "Lựa chọn A",
+          "B": "Lựa chọn B",
+          "C": "Lựa chọn C",
+          "D": "Lựa chọn D"
+        },
+        "correct_answer": "A" | "B" | "C" | "D",
+        "explanation": "Giải thích ngắn gọn tại sao đáp án này đúng."
+      }
+    `;
 
-    if (!file) {
-      return res.status(400).json({
-        error: "Chưa upload file PDF",
-      });
-    }
+    // Gọi API
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    
+    // Parse chuỗi JSON AI trả về thành mảng Object
+    const generatedQuestions = JSON.parse(responseText);
 
-    uploadedFile = file.filepath;
+    // Trả dữ liệu về cho Frontend
+    return res.status(200).json({ success: true, data: generatedQuestions });
 
-    const document = await extractDocument(uploadedFile);
-
-    const options: GenerateQuestionOptions = {
-      totalQuestions: Number(
-        getFirst(fields.totalQuestions) ?? 10
-      ),
-
-      levels: JSON.parse(
-        String(
-          getFirst(fields.levels) ??
-            '{"nb":40,"th":40,"vd":20}'
-        )
-      ),
-
-      questionTypes: JSON.parse(
-        String(
-          getFirst(fields.questionTypes) ??
-            '{"multipleChoice":true,"trueFalse":true,"shortAnswer":false,"essay":false}'
-        )
-      ),
-    };
-
-    const prompt = buildPrompt(document, options);
-
-    const questions = await generateFromGemini(prompt);
-
-    const validated = validateQuestions(questions);
-
-    await fs.unlink(uploadedFile).catch(() => undefined);
-
-    return res.status(200).json({
-      questions: validated,
-    });
-  } catch (error: any) {
-    console.error(error);
-
-    if (uploadedFile) {
-      await fs.unlink(uploadedFile).catch(() => undefined);
-    }
-
-    return res.status(500).json({
-      error: error.message,
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Đã có lỗi xảy ra khi gọi AI sinh câu hỏi.' 
     });
   }
 }
